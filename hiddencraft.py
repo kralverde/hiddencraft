@@ -6,7 +6,7 @@ For more info, look at README.md
 from socket import socket, SOL_SOCKET, SO_REUSEADDR
 from socket import error as sock_err
 import selectors
-import torsocks
+import torsocks.torsocks as torsocks
 import sys
 import threading
 import queue
