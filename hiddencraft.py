@@ -12,7 +12,9 @@ import threading
 import queue
 import logging
 
-MC_PORT = 25565
+JAVA_PORT = 25565
+BEDROCK_PORT = 19132
+
 BUFFSIZE = 4096 #4KB, used in threads
 
 GREEN = '\033[1;32m{}\033[0m'
@@ -22,6 +24,8 @@ def register_listeners(args):
     '''Creates sockets listening for each hidden service.'''
     selector = selectors.DefaultSelector()
     for offset, arg in enumerate(args):
+        if '--bedrock' in arg or '--port' in arg:
+            continue
         try:
             torsocks.onion_check(arg)
         except ValueError:
@@ -29,13 +33,13 @@ def register_listeners(args):
         else:
             listener = socket()
             listener.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-            listener.bind(('127.0.0.1', MC_PORT+offset+1))
+            listener.bind(('127.0.0.1', JAVA_PORT+offset+1))
             listener.listen(1)
             selector.register(listener, selectors.EVENT_READ, data=arg)
             print(
                 'listening for connections to',
                 GREEN.format(arg),
-                'at localhost:%d' % (MC_PORT+offset+1))
+                'at localhost:%d' % (JAVA_PORT+offset+1))
 
     return selector
 
@@ -67,9 +71,21 @@ def my_thread(client, tor, queue_):
 def main():
     '''Mainloop'''
     if len(sys.argv) == 1:
-        print('Please give at least one tor domain as an argument!')
+        print('Please give at least one tor domain as an argument!\nAdd --bedrock to use the default bedrock version port or --port=port# to connect to a specific port.')
         sys.exit(1)
     sel = register_listeners(sys.argv[1:])
+    port = JAVA_PORT
+    for arg in sys.argv[1:]:
+        if arg == '--bedrock':
+            port = BEDROCK_PORT
+            print(f'Using bedrock port {port}')
+        elif '--port=' in arg:
+            p = arg.split('=')[-1]
+            try:
+                port = int(p)
+                print(f'Using port {port}')
+            except Exception:
+                print(f'Invalid port "{p}", using {port}')
     threads = []
     try:
         while True:
@@ -79,7 +95,7 @@ def main():
                 client = key.fileobj.accept()[0]
 
                 try:
-                    tor = torsocks.create_connection((key.data, MC_PORT))
+                    tor = torsocks.create_connection((key.data, port))
                 except ValueError as exc:
                     logging.exception(exc)
                     sel.unregister(key.fileobj)
